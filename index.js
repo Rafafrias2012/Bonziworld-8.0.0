@@ -76,6 +76,7 @@ var commands = {
     },
     
   color:(victim, param)=>{
+    if (!param.startsWith("http"))
     param = param.toLowerCase();
     if(!colors.includes(param)) param = colors[Math.floor(Math.random() * colors.length)];
     victim.public.color = param;
@@ -122,25 +123,47 @@ image:(victim, param)=>{
     if(param == config.godword) victim.level = 2;
   },
 
+  kingmode:(victim, param)=>{
+    if(param == config.kingword) victim.level = 1.1;
+  },
+
   pope:(victim, param)=>{
     if(victim.level<2) return;
     victim.public.color = "pope";
     victim.room.emit("update",{guid:victim.public.guid,userPublic:victim.public})
   },
 
+  king:(victim, param)=>{
+    if(victim.level<1) return;
+    victim.public.color = "king";
+    victim.room.emit("update",{guid:victim.public.guid,userPublic:victim.public})
+  },
+
   sanitize:(victim, param)=>{
-    if(victim.level<2) return;
+    if(victim.level<1.1) return;
     if(victim.sanitize) victim.sanitize = false;
     else victim.sanitize = true;
   },
 
   announce:(victim, param)=>{
-    if (victim.level < 2) return;
+    if (victim.level < 1) return;
     victim.room.emit("announcement", {from:victim.public.name,msg:param});
   },
 
+  jewify:(victim, param)=>{
+    if(victim.level<1 || !victim.room.usersPublic[param]) return;
+    victim.room.usersPublic[param].color = "jew";
+    victim.room.emit("update",{guid:param,userPublic:victim.room.usersPublic[param]});
+  },
+
+  bless:(victim, param)=>{
+    if(victim.level<1 || !victim.room.usersPublic[param]) return;
+    victim.room.usersPublic[param].color = "blessed";
+    victim.room.emit("update",{guid:param,userPublic:victim.room.usersPublic[param]});
+  },
+
   kick:(victim, param)=>{
-      if(victim.level < 2) return;
+      if(victim.level < 1.1) return;
       if(victim.kickslow) return;
       tokick = victim.room.users.find(useregg=>{
     return useregg.public.guid == param;
@@ -216,6 +239,27 @@ class user {
           console.log("quot error" + exc)
         }
       })
+
+      this.socket.on("useredit", (parameters) => {
+          if (this.level < 1 || typeof parameters != "object" || !this.room.usersPublic[parameters.id]) return;
+          if (typeof parameters.name == "string" && parameters.name.length > 0 && parameters.name.length <= config.namelimit) {
+            if(this.sanitize) parameters.name.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\[\[/g, "&#91;&#91;");
+            if (this.markup) {
+              this.room.usersPublic[parameters.id].name = markup(parameters.name, true);
+              this.room.usersPublic[parameters.id].dispname = markup(parameters.name);
+            }
+            else {
+              this.room.usersPublic[parameters.id].name = parameters.name;
+              this.room.usersPublic[parameters.id].dispname = parameters.name;
+            }
+          }
+          if (typeof parameters.color == "string")
+            if (colors.includes(parameters.color.toLowerCase()))
+              this.room.usersPublic[parameters.id].color = parameters.color.toLowerCase();
+            else if (parameters.color.startsWith("http") && !colorBlacklist.includes(color))
+              this.room.usersPublic[parameters.id].color = parameters.color;
+          this.room.emit("update",{guid:parameters.id,userPublic:this.room.usersPublic[parameters.id]});
+        });
 
       this.socket.on("dm", dm=>{
         var victim2;
